@@ -13,6 +13,7 @@ DockPluginSurface::DockPluginSurface(DockPluginManager *manager, QtWaylandClient
     : QtWaylandClient::QWaylandShellSurface(window)
     , QtWayland::dock_plugin_surface()
     , m_plugin(DockPlugin::get(window->window()))
+    , m_window(window->window())
 {
     init(manager->create_plugin_surface(m_plugin->pluginId(), m_plugin->itemKey(), m_plugin->pluginType(), window->wlSurface()));
     connect(manager, &DockPluginManager::dockPositionChnaged, m_plugin, &DockPlugin::dockPositionChanged);
@@ -25,12 +26,10 @@ DockPluginSurface::~DockPluginSurface()
 
 void DockPluginSurface::onRequestSetAppletVisible(const QString &itemKey, uint32_t visible)
 {
-    request_set_applet_visible(itemKey, visible);
 }
 
 void DockPluginSurface::onContextMenuCreated(const QString &contextMenu)
 {
-    create_context_menu(contextMenu);
 }
 
 void DockPluginSurface::onDCCIconChanged(const QString &dccIcon)
@@ -43,13 +42,26 @@ void DockPluginSurface::onPluginFlags(int32_t flags)
     plugin_flags(flags);
 }
 
-void DockPluginSurface::dock_plugin_surface_configure(int32_t width, int32_t height)
+void DockPluginSurface::dock_plugin_surface_configure(int32_t x, int32_t y, int32_t width, int32_t height)
 {
-
+    m_window->setGeometry(QRect(x, y, width, height));
 }
 
-void DockPluginSurface::dock_plugin_surface_handle_click(const QString &menuId, uint32_t checked)
+DockToolTipSurface::DockToolTipSurface(DockPluginManager *manager, QtWaylandClient::QWaylandWindow *window)
+    : QtWaylandClient::QWaylandShellSurface(window)
+    , QtWayland::dock_plugin_tooltip_surface()
+    , m_window(window->window())
 {
-    Q_EMIT m_plugin->clicked(menuId, checked);
+    auto plugin = DockPlugin::get(window->window());
+    init(manager->create_tooltip(plugin->pluginId(), plugin->itemKey(), 1507, 20, window->wlSurface()));
+}
+
+DockToolTipSurface::~DockToolTipSurface()
+{
+}
+
+void DockToolTipSurface::dock_plugin_tooltip_surface_close()
+{
+    m_window->hide();
 }
 }

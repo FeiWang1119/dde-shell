@@ -19,9 +19,6 @@ Item {
     property alias dockColorTheme: pluginManager.dockColorTheme
     property alias dockDisplayMode: pluginManager.dockDisplayMode
 
-    property var tooltipMap: ({})
-    property var popupMap: ({})
-
     property ListModel trayPluginSurfaces: ListModel {}
     property ListModel fixedPluginSurfaces: ListModel {}
     property ListModel systemPluginSurfaces: ListModel {}
@@ -31,6 +28,8 @@ Item {
 
     property var compositor: waylandCompositor
 
+    signal tooltipCreated(var toolTip)
+
     function removeDockPluginSurface(model, object) {
         for (var i = 0; i < model.count; ++i) {
             if (object === model.get(i).shellSurface) {
@@ -38,14 +37,6 @@ Item {
                 break
             }
         }
-    }
-
-    function handlePluginTooltipSurfaceAdded(shellSurface) {
-        tooltipMap[shellSurface.pluginId] = (shellSurface)
-    }
-
-    function handleTrayPopupSurfaceAdded(shellSurface) {
-        popupMap[shellSurface.pluginId] = (shellSurface)
     }
 
     function handleDockTrayIconSurfaceAdded(shellSurface) {
@@ -143,6 +134,10 @@ Item {
                     break
                 }
                 }
+            }
+
+            onPluginTooltipCreated: (tooltip) => {
+                dockCompositor.tooltipCreated(tooltip)
             }
         }
     }

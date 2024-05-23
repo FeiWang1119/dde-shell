@@ -58,7 +58,6 @@ public:
     static DockPlugin *qmlAttachedProperties(QObject *object);
 
 Q_SIGNALS:
-    void clicked(const QString&, bool);
     void dockPositionChanged(uint32_t position);
     void dockColorThemeChanged(uint32_t colorType);
     void dockDisplayModeChanged(uint32_t displayMode);

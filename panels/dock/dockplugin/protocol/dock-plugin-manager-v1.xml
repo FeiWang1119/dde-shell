@@ -53,6 +53,16 @@
       <arg name="dock_color_theme" type="uint"/>
     </event>
 
+    <request name="create_tooltip">
+      <arg name="plugin_id"     type="string"/>
+      <arg name="item_key"      type="string"/>
+      <arg name="x"             type="int"/>
+      <arg name="y"             type="int"/>
+
+      <arg name="surface" type="object" interface="wl_surface"/>
+      <arg name="id"      type="new_id" interface="dock_plugin_tooltip_surface"/>
+    </request>
+
     <request name="create_plugin_surface">
       <arg name="plugin_id"     type="string"/>
       <arg name="item_key"      type="string"/>
@@ -66,15 +76,6 @@
   <interface name="dock_plugin_surface" version="1">
     <request name="destroy" type="destructor"/>
 
-    <request name="request_set_applet_visible">
-      <arg name="item_key"  type="string"/>
-      <arg name="visible" type="uint"/>
-    </request>
-
-    <request name="create_context_menu">
-      <arg name="context_menu"  type="string"/>
-    </request>
-
     <request name="create_dcc_icon">
       <arg name="dcc_icon"  type="string"/>
     </request>
@@ -84,15 +85,16 @@
     </request>
 
     <event name="configure">
+      <arg name="x"   type="int"/>
+      <arg name="y"   type="int"/>
       <arg name="width"   type="int"/>
       <arg name="height"  type="int"/>
     </event>
+  </interface>
 
-    <event name="handle_click">
-      <arg name="menu_id"   type="string"/>
-      <arg name="checked"   type="uint"/>
-    </event>
-
+  <interface name="dock_plugin_tooltip_surface" version="1">
+    <request name="destroy" type="destructor"/>
+    <event   name="close"/>
   </interface>
 
 </protocol>

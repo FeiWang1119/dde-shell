@@ -27,3 +27,24 @@ void DockPluginManagerIntegration::handleDockPluginSurfaceDestroyed()
 {
     m_pluginSurface = nullptr;
 }
+
+
+DockPluginTooltipIntegration::DockPluginTooltipIntegration(QWaylandQuickShellSurfaceItem *item)
+    : QWaylandQuickShellIntegration(item)
+    , m_item(item)
+    , m_pluginSurface(qobject_cast<PluginToolTip *>(item->shellSurface()))
+{
+    m_item->setSurface(m_pluginSurface->surface());
+    connect(m_pluginSurface, &QWaylandShellSurface::destroyed,
+            this, &DockPluginTooltipIntegration::handleDockPluginSurfaceDestroyed);
+}
+
+DockPluginTooltipIntegration::~DockPluginTooltipIntegration()
+{
+    m_item->setSurface(nullptr);
+}
+
+void DockPluginTooltipIntegration::handleDockPluginSurfaceDestroyed()
+{
+    m_pluginSurface = nullptr;
+}

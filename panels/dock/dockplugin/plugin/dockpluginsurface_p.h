@@ -27,10 +27,25 @@ public Q_SLOTS:
     void onPluginFlags(int32_t flags);
 
 protected:
-    void dock_plugin_surface_configure(int32_t width, int32_t height) override;
-    void dock_plugin_surface_handle_click(const QString &menuId, uint32_t checked) override;
+    void dock_plugin_surface_configure(int32_t x, int32_t y, int32_t width, int32_t height) override;
 
 private:
     DockPlugin* m_plugin;
+    QWindow* m_window;
+};
+
+class DockToolTipSurface : public QtWaylandClient::QWaylandShellSurface, public QtWayland::dock_plugin_tooltip_surface
+{
+    Q_OBJECT
+
+public:
+    DockToolTipSurface(DockPluginManager *manager, QtWaylandClient::QWaylandWindow *window);
+    ~DockToolTipSurface() override;
+
+protected:
+    void dock_plugin_tooltip_surface_close() override;
+
+private:
+    QWindow* m_window;
 };
 }

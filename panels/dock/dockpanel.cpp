@@ -37,7 +37,7 @@ DockPanel::DockPanel(QObject * parent)
     , m_compositorReady(false)
     , m_launcherShown(false)
 {
-    // connect(this, &DockPanel::compositorReadyChanged, this, &DockPanel::loadDockPlugins);
+    connect(this, &DockPanel::compositorReadyChanged, this, &DockPanel::loadDockPlugins);
 }
 
 bool DockPanel::load()

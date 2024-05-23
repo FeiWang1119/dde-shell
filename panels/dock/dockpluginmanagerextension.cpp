@@ -60,23 +60,6 @@ DockPluginManager::SurfaceType PluginSurface::surfaceType() const
     return m_surfaceType;
 }
 
-void PluginSurface::click(const QString &menuId, uint32_t checked)
-{
-    send_handle_click(menuId, checked);
-}
-
-void PluginSurface::dock_plugin_surface_request_set_applet_visible(Resource *resource, const QString &itemKey, uint32_t visible)
-{
-
-}
-
-void PluginSurface::dock_plugin_surface_create_context_menu(Resource *resource, const QString &contextMenu)
-{
-    if (contextMenu != m_contextMenu) {
-        m_contextMenu = contextMenu;   
-    }
-}
-
 void PluginSurface::dock_plugin_surface_create_dcc_icon(Resource *resource, const QString &dccIcon)
 {
     if (dccIcon != m_dccIcon) {
@@ -91,6 +74,53 @@ void PluginSurface::dock_plugin_surface_plugin_flags(Resource *resource, int32_t
     }
 }
 
+void PluginSurface::updatePluginGeometry(const QRect &geometry)
+{
+    send_configure(geometry.x(), geometry.y(), geometry.width(), geometry.height());
+}
+
+PluginToolTip::PluginToolTip(DockPluginManager* manager, const QString& pluginId, const QString& itemKey, QWaylandSurface *surface, const QWaylandResource &resource)
+    : m_manager(manager)
+    , m_pluginId(pluginId)
+    , m_itemKey(itemKey)
+    , m_surface(surface)
+{
+    init(resource.resource());
+    setExtensionContainer(surface);
+    QWaylandCompositorExtension::initialize();
+}
+
+QWaylandSurface* PluginToolTip::surface() const
+{
+    return m_surface;
+}
+
+QWaylandQuickShellIntegration* PluginToolTip::createIntegration(QWaylandQuickShellSurfaceItem *item)
+{
+    return new DockPluginTooltipIntegration(item);
+}
+
+int32_t PluginToolTip::x() const
+{
+    return m_x;
+}
+
+int32_t PluginToolTip::y() const
+{
+    return m_y;
+}
+
+void PluginToolTip::setX(int32_t x)
+{
+    m_x = x;
+    Q_EMIT xChanged();
+}
+
+void PluginToolTip::setY(int32_t y)
+{
+    m_y = y;
+    Q_EMIT yChanged();
+}
 
 DockPluginManager::DockPluginManager(QWaylandCompositor *compositor)
     : QWaylandCompositorExtensionTemplate(compositor)
@@ -182,3 +212,15 @@ void DockPluginManager::dock_plugin_manager_v1_create_plugin_surface(Resource *r
     auto plugin = new PluginSurface(this, pluginId, itemKey, static_cast<SurfaceType>(surfaceType), qwaylandSurface, shellSurfaceResource);
     Q_EMIT pluginSurfaceCreated(plugin);
 }
+
+void DockPluginManager::dock_plugin_manager_v1_create_tooltip(Resource *resource, const QString &plugin_id, const QString &item_key, int32_t x, int32_t y, struct ::wl_resource *surface, uint32_t id)
+{
+    QWaylandSurface *qwaylandSurface = QWaylandSurface::fromResource(surface);
+    QWaylandResource shellSurfaceResource(wl_resource_create(resource->client(), &::dock_plugin_surface_interface,
+                                                           wl_resource_get_version(resource->handle), id));
+
+    auto plugin = new PluginToolTip(this, plugin_id, item_key, qwaylandSurface, shellSurfaceResource);
+    plugin->setX(x), plugin->setY(y);
+    Q_EMIT pluginTooltipCreated(plugin);
+}
+

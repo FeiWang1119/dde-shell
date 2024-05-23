@@ -10,6 +10,7 @@
 #include <QPainter>
 #include <QProcess>
 #include <QVBoxLayout>
+#include <QMouseEvent>
 
 namespace dock {
 WidgetPlugin::WidgetPlugin(PluginsItemInterface* pluginItem)
@@ -30,7 +31,7 @@ void WidgetPlugin::itemAdded(PluginsItemInterface * const itemInter, const QStri
     DockPlugin* plugin;
 
     if (m_pluginItem->flags() & Type_Common) {
-        auto trayWidget = getQucikPluginTrayWidget();
+        auto trayWidget = getQucikPluginTrayWidget(itemKey);
         if (trayWidget) {
             trayWidget->setAttribute(Qt::WA_TranslucentBackground);
             plugin = getPlugin(trayWidget);
@@ -39,20 +40,6 @@ void WidgetPlugin::itemAdded(PluginsItemInterface * const itemInter, const QStri
             plugin->setPluginFlags(m_pluginItem->flags());
             plugin->setPluginId(m_pluginItem->pluginName());
             plugin->setContextMenu(m_pluginItem->itemContextMenu(itemKey));
-
-            connect(plugin, &DockPlugin::clicked, this, [this, plugin](const QString& menuId, bool checked){
-                if (menuId.isEmpty()) {
-                    QStringList commandArgument = itemCommand(plugin->itemKey()).split(" ");
-                    if (commandArgument.size() > 0) {
-                        QString command = commandArgument.first();
-                        commandArgument.removeFirst();
-                        QProcess::startDetached(command, commandArgument);
-                    }
-                } else {
-                    m_pluginItem->invokedMenuItem(plugin->itemKey(), menuId, checked);
-                }
-            });
-
             trayWidget->show();
         }
 
@@ -91,30 +78,6 @@ void WidgetPlugin::itemAdded(PluginsItemInterface * const itemInter, const QStri
             plugin->setPluginType(type);
             widget->show();
         }
-    }
-
-    auto popupWidget = m_pluginItem->itemPopupApplet(itemKey);
-    if (!popupWidget && m_pluginItem->flags() & Type_Common) {
-        popupWidget = m_pluginItem->itemPopupApplet(QUICK_ITEM_KEY);
-    }
-
-    if (popupWidget) {
-        popupWidget->setAttribute(Qt::WA_TranslucentBackground);
-        plugin = getPlugin(popupWidget);
-        plugin->setPluginType(DockPlugin::Popup);
-        plugin->setItemKey(itemKey);
-        plugin->setPluginId(m_pluginItem->pluginName());
-        popupWidget->show();
-    }
-
-    auto tipsWidget = m_pluginItem->itemTipsWidget(itemKey);
-    if (tipsWidget) {
-        tipsWidget->setAttribute(Qt::WA_TranslucentBackground);
-        plugin = getPlugin(tipsWidget);
-        plugin->setPluginType(DockPlugin::Tooltip);
-        plugin->setItemKey(itemKey);
-        plugin->setPluginId(m_pluginItem->pluginName());
-        tipsWidget->show();
     }
 }
 
@@ -220,20 +183,6 @@ const QString WidgetPlugin::itemContextMenu(const QString &itemKey)
     return m_pluginItem->itemContextMenu(itemKey);
 }
 
-void WidgetPlugin::handleClicked(const QString &itemKey, const QString &menuId, const bool checked)
-{
-    if (menuId.isEmpty()) {
-        QStringList commandArgument = itemCommand(itemKey).split(" ");
-        if (commandArgument.size() > 0) {
-            QString command = commandArgument.first();
-            commandArgument.removeFirst();
-            QProcess::startDetached(command, commandArgument);
-        }
-    } else {
-        m_pluginItem->invokedMenuItem(itemKey, menuId, checked);
-    }
-}
-
 void WidgetPlugin::onDockPositionChanged(uint32_t position)
 {
     qApp->setProperty(PROP_POSITION, position);
@@ -246,27 +195,17 @@ void WidgetPlugin::onDockDisplayModeChanged(uint32_t displayMode)
     m_pluginItem->displayModeChanged(static_cast<Dock::DisplayMode>(displayMode));
 }
 
-QWidget* WidgetPlugin::getQucikPluginTrayWidget()
+QWidget* WidgetPlugin::getQucikPluginTrayWidget(const QString &itemKey)
 {
     auto trayIcon = m_pluginItem->icon(DockPart::QuickShow);
     if (trayIcon.isNull())
         return m_widget.get();
 
     if (m_widget.isNull()) {
-        auto func = [this]() -> QPixmap {
-            auto trayIcon = m_pluginItem->icon(DockPart::QuickShow);
-            // NOTE: icon same as TrayIconWidget size, otherwise there will be white space
-            // FIXME: trayIcon size may min than PLUGIN_ICON_MIN_SIZE (such as sound plugin)
-            auto scale = QCoreApplication::testAttribute(Qt::AA_UseHighDpiPixmaps) ? 1 : qApp->devicePixelRatio();
-            auto pixmap = trayIcon.pixmap(PLUGIN_ICON_MIN_SIZE * scale, PLUGIN_ICON_MIN_SIZE * scale);
-            pixmap.setDevicePixelRatio(qApp->devicePixelRatio());
-            return pixmap;
-        };
+        m_widget.reset(new TrayIconWidget(m_pluginItem, itemKey));
 
-        m_widget.reset(new TrayIconWidget(func));
-
-        connect(DGuiApplicationHelper::instance(), &DGuiApplicationHelper::themeTypeChanged, this, [this](){
-            auto widget = getQucikPluginTrayWidget();
+        connect(DGuiApplicationHelper::instance(), &DGuiApplicationHelper::themeTypeChanged, this, [this, itemKey](){
+            auto widget = getQucikPluginTrayWidget(itemKey);
             if (widget) widget->update();
         }, Qt::UniqueConnection);
     }
@@ -298,9 +237,10 @@ DockPlugin* WidgetPlugin::getPlugin(QWidget* widget)
     return plugin;
 }
 
-TrayIconWidget::TrayIconWidget(std::function<QPixmap()> trayIconCallback, QWidget* parent)
+TrayIconWidget::TrayIconWidget(PluginsItemInterface* pluginItem, QString itemKey, QWidget* parent)
     : QWidget(parent)
-    , m_callBack(trayIconCallback)
+    , m_pluginItem(pluginItem)
+    , m_itemKey(itemKey)
 {
     auto scale = QCoreApplication::testAttribute(Qt::AA_UseHighDpiPixmaps) ? 1 : qApp->devicePixelRatio();
     setFixedSize(PLUGIN_ICON_MIN_SIZE * scale, PLUGIN_ICON_MIN_SIZE * scale);
@@ -311,11 +251,85 @@ TrayIconWidget::~TrayIconWidget()
 
 void TrayIconWidget::paintEvent(QPaintEvent *event)
 {
-    auto pixmap = m_callBack();
+    auto func = [this]() -> QPixmap {
+        auto trayIcon = m_pluginItem->icon(DockPart::QuickShow);
+        // NOTE: icon same as TrayIconWidget size, otherwise there will be white space
+        // FIXME: trayIcon size may min than PLUGIN_ICON_MIN_SIZE (such as sound plugin)
+        auto scale = QCoreApplication::testAttribute(Qt::AA_UseHighDpiPixmaps) ? 1 : qApp->devicePixelRatio();
+        auto pixmap = trayIcon.pixmap(PLUGIN_ICON_MIN_SIZE, PLUGIN_ICON_MIN_SIZE);
+        pixmap.setDevicePixelRatio(qApp->devicePixelRatio());
+        return pixmap;
+    };
+
+    auto pixmap = func();
     QPainter painter(this);
     auto scale = QCoreApplication::testAttribute(Qt::AA_UseHighDpiPixmaps) ? 1 : qApp->devicePixelRatio();
     QSize size = QCoreApplication::testAttribute(Qt::AA_UseHighDpiPixmaps) ? pixmap.size() / qApp->devicePixelRatio() : pixmap.size();
     QRect pixmapRect = QRect(QPoint(0, 0), QSize(PLUGIN_ICON_MIN_SIZE * scale, PLUGIN_ICON_MIN_SIZE * scale));
     painter.drawPixmap(pixmapRect, pixmap);
 }
+
+void TrayIconWidget::enterEvent(QEvent *event)
+{
+    auto popup = m_pluginItem->itemPopupApplet(m_itemKey);
+    if (!popup) {
+        popup = m_pluginItem->itemPopupApplet(QUICK_ITEM_KEY);
+    }
+
+    if (popup && popup->windowHandle()) {
+        popup->windowHandle()->hide();
+    }
+
+    auto tooltip = m_pluginItem->itemTipsWidget(m_itemKey);
+    tooltip->setAttribute(Qt::WA_TranslucentBackground);
+    tooltip->setParent(nullptr);
+    tooltip->winId();
+    
+    auto plugin = DockPlugin::get(tooltip->windowHandle());
+    plugin->setPluginType(dock::DockPlugin::PluginType::Tooltip);
+    plugin->setItemKey(m_itemKey);
+    plugin->setPluginId(m_pluginItem->pluginName());
+    tooltip->show();
+}
+
+void TrayIconWidget::leaveEvent(QEvent *event)
+{
+    auto tooltip = m_pluginItem->itemTipsWidget(m_itemKey);
+    if (tooltip && tooltip->windowHandle())
+        tooltip->windowHandle()->hide();
+}
+
+void TrayIconWidget::mouseReleaseEvent(QMouseEvent *event)
+{
+    m_pluginItem->itemTipsWidget(m_itemKey)->setVisible(false);
+
+    if (auto popup = m_pluginItem->itemPopupApplet(m_itemKey)) {
+        popup->setParent(nullptr);
+        popup->setAttribute(Qt::WA_TranslucentBackground);
+        popup->winId();
+        auto plugin = DockPlugin::get(popup->windowHandle());
+        plugin->setPluginType(dock::DockPlugin::PluginType::Tooltip);
+        plugin->setItemKey(m_itemKey);
+        plugin->setPluginId(m_pluginItem->pluginName());
+        popup->show();
+    } else if (auto popup = m_pluginItem->itemPopupApplet(QUICK_ITEM_KEY)) {
+        popup->setParent(nullptr);
+        popup->setAttribute(Qt::WA_TranslucentBackground);
+        popup->winId();
+        auto plugin = DockPlugin::get(popup->windowHandle());
+        plugin->setPluginType(dock::DockPlugin::PluginType::Tooltip);
+        plugin->setItemKey(m_itemKey);
+        plugin->setPluginId(m_pluginItem->pluginName());
+        popup->show();
+    } else {
+        qDebug() << "no popup";
+        QStringList commandArgument = m_pluginItem->itemCommand(m_itemKey).split(" ");
+        if (commandArgument.size() > 0) {
+            QString command = commandArgument.first();
+            commandArgument.removeFirst();
+            QProcess::startDetached(command, commandArgument);
+        }
+    }
+}
+
 }

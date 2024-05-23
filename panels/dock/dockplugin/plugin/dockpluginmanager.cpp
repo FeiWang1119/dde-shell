@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include "dockplugin.h"
 #include "dockpluginmanager_p.h"
 #include "dockpluginsurface_p.h"
 
@@ -44,6 +45,11 @@ void DockPluginManager::dock_plugin_manager_v1_color_theme_changed(uint32_t dock
 
 QtWaylandClient::QWaylandShellSurface* DockPluginManager::createPluginSurface(QtWaylandClient::QWaylandWindow *window)
 {
-    return new DockPluginSurface(this, window);
+    auto plugin = DockPlugin::get(window->window());
+    switch (plugin->pluginType()) {
+        case DockPlugin::Tooltip: return new DockToolTipSurface(this, window);
+        default: return new DockPluginSurface(this, window);
+    }
+    
 }
 }

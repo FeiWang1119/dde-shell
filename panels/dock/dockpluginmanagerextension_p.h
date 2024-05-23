@@ -13,6 +13,7 @@
 #include "qwayland-server-dock-plugin-manager-v1.h"
 
 class PluginSurface;
+class PluginToolTip;
 class DockPluginManager : public QWaylandCompositorExtensionTemplate<DockPluginManager>, public QtWaylandServer::dock_plugin_manager_v1
 {
     Q_OBJECT
@@ -48,11 +49,13 @@ public:
     void setDockColorTheme(uint32_t type);
 
 Q_SIGNALS:
+    void pluginTooltipCreated(PluginToolTip*);
     void pluginSurfaceCreated(PluginSurface*);
     void pluginSurfaceDestroyed(PluginSurface*);
 
 protected:
     void dock_plugin_manager_v1_create_plugin_surface(Resource *resource, const QString &pluginId, const QString &itemKey, uint32_t surfaceType, struct ::wl_resource *surface, uint32_t id) override;
+    void dock_plugin_manager_v1_create_tooltip(Resource *resource, const QString &plugin_id, const QString &item_key, int32_t x, int32_t y, struct ::wl_resource *surface, uint32_t id) override;
 
 private:
     QList<QWaylandSurface*> m_pluginSurfaces;
@@ -81,14 +84,13 @@ public:
     QString contextMenu() const;
     int32_t pluginFlags() const;
     DockPluginManager::SurfaceType surfaceType() const;
-    Q_INVOKABLE void click(const QString &menuId, uint32_t checked);
+
+    Q_INVOKABLE void updatePluginGeometry(const QRect &geometry);
 
 Q_SIGNALS:
     void contextMenuChanged();
 
 protected:
-    void dock_plugin_surface_request_set_applet_visible(Resource *resource, const QString &itemKey, uint32_t visible) override;
-    void dock_plugin_surface_create_context_menu(Resource *resource, const QString &contextMenu) override;
     void dock_plugin_surface_create_dcc_icon(Resource *resource, const QString &dccIcon) override;
     void dock_plugin_surface_plugin_flags(Resource *resource, int32_t flags) override;
 
@@ -104,6 +106,39 @@ private:
     int32_t m_flags;
 
     DockPluginManager::SurfaceType m_surfaceType;
+};
+
+class PluginToolTip : public QWaylandShellSurfaceTemplate<PluginSurface>, public QtWaylandServer::dock_plugin_tooltip_surface
+{
+    Q_OBJECT
+    Q_PROPERTY(int32_t x READ x WRITE setX NOTIFY xChanged)
+    Q_PROPERTY(int32_t y READ y WRITE setY NOTIFY yChanged)
+
+public:
+    PluginToolTip(DockPluginManager* shell, const QString& pluginId, const QString& itemKey, QWaylandSurface *surface, const QWaylandResource &resource);
+    QWaylandQuickShellIntegration *createIntegration(QWaylandQuickShellSurfaceItem *item) override;
+
+    QWaylandSurface *surface() const;
+
+    int32_t x() const;
+    int32_t y() const;
+
+    void setX(int32_t x);
+    void setY(int32_t y);
+
+Q_SIGNALS:
+    void xChanged();
+    void yChanged();
+
+private:
+    QWaylandSurface* m_surface;
+    DockPluginManager* m_manager;
+
+    QString m_itemKey;
+    QString m_pluginId;
+
+    int32_t m_x;
+    int32_t m_y;
 };
 
 Q_COMPOSITOR_DECLARE_QUICK_EXTENSION_CLASS(DockPluginManager)

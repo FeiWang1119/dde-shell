@@ -42,10 +42,9 @@ public:
 public Q_SLOTS:
     void onDockPositionChanged(uint32_t position);
     void onDockDisplayModeChanged(uint32_t displayMode);
-    void handleClicked(const QString &itemKey, const QString &menuId, const bool checked);
- 
+
 private:
-    QWidget* getQucikPluginTrayWidget();
+    QWidget* getQucikPluginTrayWidget(const QString &itemKey);
     DockPlugin* getPlugin(QWidget*);
 
 private:
@@ -58,12 +57,18 @@ class TrayIconWidget : public QWidget
 {
     Q_OBJECT
 public:
-    TrayIconWidget(std::function<QPixmap()> trayIconCallback, QWidget* parent = nullptr);
+    TrayIconWidget(PluginsItemInterface* m_pluginItem, QString m_itemKey, QWidget* parent = nullptr);
     ~TrayIconWidget();
 
     void paintEvent(QPaintEvent *event) override;
 
+protected:
+    void enterEvent(QEvent *event) override;
+    void leaveEvent(QEvent *event) override;
+    void mouseReleaseEvent(QMouseEvent *event) override;
+
 private:
-    std::function<QPixmap()> m_callBack;
+    PluginsItemInterface* m_pluginItem;
+    QString m_itemKey;
 };
 }
