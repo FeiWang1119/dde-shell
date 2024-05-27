@@ -4,7 +4,7 @@
 
 #include "setproctitle.h"
 #include "widgetplugin.h"
-#include "pluginsiteminterface.h"
+#include "pluginsiteminterface_v2.h"
 
 #include <DDBusSender>
 #include <DApplication>
@@ -85,6 +85,13 @@ int main(int argc, char *argv[], char *envp[])
     }
 
     PluginsItemInterface *interface = qobject_cast<PluginsItemInterface *>(pluginLoader->instance());
+    if (!interface) {
+      interface = qobject_cast<PluginsItemInterfaceV2*>(pluginLoader->instance());
+    }
+    if (!interface) {
+        qWarning() << "get interface failed!" << pluginLoader->instance() << qobject_cast<PluginsItemInterfaceV2*>(pluginLoader->instance());;
+        return 0;
+    }
     dock::WidgetPlugin dockPlugin(interface);
 
     app.setApplicationName(interface->pluginName());

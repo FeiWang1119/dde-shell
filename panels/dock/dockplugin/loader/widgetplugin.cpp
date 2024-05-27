@@ -5,18 +5,23 @@
 #include "constants.h"
 #include "dockplugin.h"
 #include "widgetplugin.h"
-#include "pluginsiteminterface.h"
+#include "pluginsiteminterface_v2.h"
 
 #include <QPainter>
 #include <QProcess>
 #include <QVBoxLayout>
 #include <QMouseEvent>
+#include <dguiapplicationhelper.h>
+
+DGUI_USE_NAMESPACE
 
 namespace dock {
 WidgetPlugin::WidgetPlugin(PluginsItemInterface* pluginItem)
     : QObject()
     , m_pluginItem(pluginItem)
 {
+    PluginsItemInterfaceV2 *interface_v2 = dynamic_cast<PluginsItemInterfaceV2 *>(m_pluginItem);
+    m_isPluginInterface_v2 = interface_v2 ? true : false;
     QMetaObject::invokeMethod(this, [this](){
         m_pluginItem->init(this);
     });
@@ -30,26 +35,31 @@ void WidgetPlugin::itemAdded(PluginsItemInterface * const itemInter, const QStri
 {
     DockPlugin* plugin;
 
-    if (m_pluginItem->flags() & Type_Common) {
+    if (!m_isPluginInterface_v2) {
+        return; 
+    }
+
+    PluginsItemInterfaceV2 *interface_v2 = dynamic_cast<PluginsItemInterfaceV2 *>(m_pluginItem);
+    if (interface_v2->flags() & Type_Common) {
         auto trayWidget = getQucikPluginTrayWidget(itemKey);
         if (trayWidget) {
             trayWidget->setAttribute(Qt::WA_TranslucentBackground);
             plugin = getPlugin(trayWidget);
             plugin->setItemKey(itemKey);
             plugin->setPluginType(DockPlugin::Tray);
-            plugin->setPluginFlags(m_pluginItem->flags());
+            plugin->setPluginFlags(interface_v2->flags());
             plugin->setPluginId(m_pluginItem->pluginName());
             plugin->setContextMenu(m_pluginItem->itemContextMenu(itemKey));
             trayWidget->show();
         }
 
-        auto quickWidget = m_pluginItem->itemWidget(QUICK_ITEM_KEY);
+        auto quickWidget = interface_v2->itemWidget(QUICK_ITEM_KEY);
         if (quickWidget) {
             quickWidget->setAttribute(Qt::WA_TranslucentBackground);
             plugin = getPlugin(quickWidget);
             plugin->setItemKey(itemKey);
             plugin->setPluginType(DockPlugin::Quick);
-            plugin->setPluginFlags(m_pluginItem->flags());
+            plugin->setPluginFlags(interface_v2->flags());
             plugin->setPluginId(m_pluginItem->pluginName());
             plugin->setContextMenu(m_pluginItem->itemContextMenu(itemKey));
             quickWidget->show();
@@ -61,17 +71,17 @@ void WidgetPlugin::itemAdded(PluginsItemInterface * const itemInter, const QStri
             plugin = getPlugin(widget);
             plugin->setItemKey(itemKey);
             plugin->setPluginId(m_pluginItem->pluginName());
-            plugin->setPluginFlags(m_pluginItem->flags());
+            plugin->setPluginFlags(interface_v2->flags());
             plugin->setContextMenu(m_pluginItem->itemContextMenu(itemKey));
 
             DockPlugin::PluginType type;
-            if (m_pluginItem->flags() & Type_Fixed) {
+            if (interface_v2->flags() & Type_Fixed) {
                 type = DockPlugin::Fixed;
-            } else if (m_pluginItem->flags() & Type_System) {
+            } else if (interface_v2->flags() & Type_System) {
                 type = DockPlugin::System;
-            } else if (m_pluginItem->flags() & Type_Tool) {
+            } else if (interface_v2->flags() & Type_Tool) {
                 type = DockPlugin::Tool;
-            } else if (m_pluginItem->flags() & Type_Tray) {
+            } else if (interface_v2->flags() & Type_Tray) {
                 type = DockPlugin::Tray;
             }
 
@@ -197,7 +207,11 @@ void WidgetPlugin::onDockDisplayModeChanged(uint32_t displayMode)
 
 QWidget* WidgetPlugin::getQucikPluginTrayWidget(const QString &itemKey)
 {
-    auto trayIcon = m_pluginItem->icon(DockPart::QuickShow);
+    if (!m_isPluginInterface_v2) {
+        return nullptr;
+    }
+    PluginsItemInterfaceV2 *interface_v2 = dynamic_cast<PluginsItemInterfaceV2*>(m_pluginItem);
+    auto trayIcon = interface_v2->icon(Dock::IconType::IconType_None, (Dock::ThemeType)DGuiApplicationHelper::instance()->themeType());
     if (trayIcon.isNull())
         return m_widget.get();
 
@@ -252,7 +266,8 @@ TrayIconWidget::~TrayIconWidget()
 void TrayIconWidget::paintEvent(QPaintEvent *event)
 {
     auto func = [this]() -> QPixmap {
-        auto trayIcon = m_pluginItem->icon(DockPart::QuickShow);
+        PluginsItemInterfaceV2 *interface_v2 = dynamic_cast<PluginsItemInterfaceV2*>(m_pluginItem);
+        auto trayIcon = interface_v2->icon(Dock::IconType::IconType_None, (Dock::ThemeType)DGuiApplicationHelper::instance()->themeType());
         // NOTE: icon same as TrayIconWidget size, otherwise there will be white space
         // FIXME: trayIcon size may min than PLUGIN_ICON_MIN_SIZE (such as sound plugin)
         auto scale = QCoreApplication::testAttribute(Qt::AA_UseHighDpiPixmaps) ? 1 : qApp->devicePixelRatio();
